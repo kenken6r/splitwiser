@@ -3,6 +3,8 @@ import streamlit as st
 
 st.set_page_config(page_title="裏", layout="wide")
 
+APP_PASSWORD = "tet1213"
+
 @st.cache_data
 def load_data(path: str) -> pd.DataFrame:
     # 文字化けする場合は encoding="utf-8-sig" を試してください
@@ -22,13 +24,42 @@ def load_data(path: str) -> pd.DataFrame:
 
     return df
 
+
+def auth_gate() -> None:
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if st.session_state.authenticated:
+        return
+
+    st.title("認証が必要です")
+    pw = st.text_input("パスワードを入力してください", type="password")
+
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        login_clicked = st.button("送信")
+
+    if login_clicked:
+        if pw == APP_PASSWORD:
+            st.session_state.authenticated = True
+            st.success("認証できました。")
+            st.rerun()
+        else:
+            st.error("パスワードが違います。")
+
+    st.stop()
+
+
+# まず認証
+auth_gate()
+
+# 認証後の画面
 st.title("裏")
 
 df = load_data("df_long.csv")
 
 name_input = st.text_input("氏名を入力", placeholder="例: 山田 太郎")
 
-# 候補抽出（部分一致）
 candidate_names = []
 if name_input:
     candidate_names = (
@@ -39,7 +70,6 @@ if name_input:
         .tolist()
     )
 
-# ここで「ヒット件数」と「候補者名」を表示
 if name_input:
     st.write(f"ヒット件数：{len(candidate_names)}")
     st.write("候補者名：")
@@ -64,7 +94,6 @@ if person_df.empty:
     st.warning("該当者が見つかりませんでした。表記ゆれがないか確認してください。")
     st.stop()
 
-# 最新年度の行
 if person_df["年度_num"].notna().any():
     latest_idx = person_df["年度_num"].idxmax()
 else:
@@ -72,7 +101,6 @@ else:
 
 latest_row = person_df.loc[latest_idx]
 
-# 基本情報（見出し変更）
 st.subheader("基本情報")
 
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -91,7 +119,6 @@ col4.write(latest_row.get("出身大学", ""))
 col5.write("出身高校")
 col5.write(latest_row.get("出身高校", ""))
 
-# ポスト遍歴（見出し変更・インデックス非表示）
 st.subheader("ポスト遍歴")
 
 history = person_df[["年度", "年目", "ポスト", "年度_num"]].copy()
@@ -104,3 +131,9 @@ else:
 history = history.drop(columns=["年度_num"])
 
 st.dataframe(history, use_container_width=True, hide_index=True)
+
+# 任意: ログアウトボタン
+st.divider()
+if st.button("ログアウト"):
+    st.session_state.authenticated = False
+    st.rerun()
