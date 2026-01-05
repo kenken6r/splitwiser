@@ -35,7 +35,8 @@ st.query_params["page_id"] = PAGE_ID
 page_row = db.get_page(PAGE_ID)
 page_name = page_row["name"] if page_row else "Unknown"
 
-st.title(f"Split App: {page_name}")
+# Title: page name only
+st.title(f"{page_name}")
 
 # ------------------------
 # Backup buttons (page-scoped export is only transaction detail; DB file is global)
@@ -83,7 +84,7 @@ with c2:
 left, right = st.columns([1, 2], gap="large")
 
 # ------------------------
-# Members
+# Left: Members + Add member + Add expense
 # ------------------------
 with left:
     st.subheader("Members")
@@ -165,31 +166,85 @@ with left:
                 else:
                     st.error(msg)
 
-    st.divider()
-    st.subheader("Deleted members")
-    deleted_members = [r for r in db.get_members(PAGE_ID, include_deleted=True) if int(r["is_deleted"]) == 1]
-    if not deleted_members:
-        st.write("No deleted members.")
-    else:
-        for dm in deleted_members:
-            dm_id = int(dm["id"])
-            cA, cB = st.columns([3, 1])
-            with cA:
-                st.write(f'{dm["name"]} (deleted {dm["deleted_at"]})')
-            with cB:
-                if st.button("Restore", key=f"restore_member_{PAGE_ID}_{dm_id}"):
-                    ok, msg = db.restore_member(PAGE_ID, dm_id)
-                    if ok:
-                        st.success(msg)
-                        st.rerun()
-                    else:
-                        st.error(msg)
-
 # ------------------------
-# History + Summary + Detail
+# Right: Summary -> Transaction detail -> History -> Deleted history -> Deleted members
 # ------------------------
 with right:
+    # ---- Summary (immediately after Add expense) ----
+    st.subheader("Summary")
+
+    members = db.get_members(PAGE_ID)
+    if not members:
+        st.write("No members.")
+    else:
+        balances = db.compute_net_balances(PAGE_ID)
+
+        cA, cB = st.columns(2)
+        with cA:
+            st.markdown("**USD**")
+            usd_rows = [{"Member": k, "Net": round(v, 2)} for k, v in balances["USD"].items()]
+            st.dataframe(usd_rows, use_container_width=True, hide_index=True)
+
+        with cB:
+            st.markdown("**JPY**")
+            jpy_rows = [{"Member": k, "Net": round(v, 0)} for k, v in balances["JPY"].items()]
+            st.dataframe(jpy_rows, use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.markdown("**Convert JPY net to USD**")
+
+        fx = st.number_input(
+            "1 USD = ? JPY",
+            min_value=0.000001,
+            value=150.0,
+            step=0.1,
+            key=f"fx_{PAGE_ID}",
+        )
+
+        member_rows = [m["name"] for m in db.get_members(PAGE_ID)]
+
+        usd_equiv_rows = []
+        for member in member_rows:
+            usd_net = float(balances["USD"].get(member, 0.0))
+            jpy_net = float(balances["JPY"].get(member, 0.0))
+            jpy_in_usd = jpy_net / float(fx)
+            total_usd_net = usd_net + jpy_in_usd
+
+            usd_equiv_rows.append(
+                {
+                    "Member": member,
+                    "USD": round(usd_net, 2),
+                    "USD equiv": round(jpy_in_usd, 2),
+                    "USD net": round(total_usd_net, 2),
+                }
+            )
+
+        st.dataframe(pd.DataFrame(usd_equiv_rows), use_container_width=True, hide_index=True)
+
+    # ---- Transaction detail ----
+    st.divider()
+    st.subheader("Transaction detail")
+
+    tab_usd, tab_jpy = st.tabs(["USD", "JPY"])
+
+    with tab_usd:
+        df_usd = db.build_transaction_matrix(PAGE_ID, "USD")
+        if df_usd.empty:
+            st.write("No USD transactions.")
+        else:
+            st.dataframe(df_usd, use_container_width=True, hide_index=True)
+
+    with tab_jpy:
+        df_jpy = db.build_transaction_matrix(PAGE_ID, "JPY")
+        if df_jpy.empty:
+            st.write("No JPY transactions.")
+        else:
+            st.dataframe(df_jpy, use_container_width=True, hide_index=True)
+
+    # ---- History ----
+    st.divider()
     st.subheader("History")
+
     expenses = db.fetch_expenses(PAGE_ID, active_only=True)
     members = db.get_members(PAGE_ID)
 
@@ -265,78 +320,10 @@ with right:
                         else:
                             st.error(msg)
 
-    st.divider()
-    st.subheader("Summary")
-
-    members = db.get_members(PAGE_ID)
-    if not members:
-        st.write("No members.")
-    else:
-        balances = db.compute_net_balances(PAGE_ID)
-
-        cA, cB = st.columns(2)
-        with cA:
-            st.markdown("**USD**")
-            usd_rows = [{"Member": k, "Net": round(v, 2)} for k, v in balances["USD"].items()]
-            st.dataframe(usd_rows, use_container_width=True, hide_index=True)
-
-        with cB:
-            st.markdown("**JPY**")
-            jpy_rows = [{"Member": k, "Net": round(v, 0)} for k, v in balances["JPY"].items()]
-            st.dataframe(jpy_rows, use_container_width=True, hide_index=True)
-
-        st.divider()
-        st.markdown("**Convert JPY net to USD**")
-
-        fx = st.number_input(
-            "1 USD = ? JPY",
-            min_value=0.000001,
-            value=150.0,
-            step=0.1,
-            key=f"fx_{PAGE_ID}",
-        )
-
-        member_rows = [m["name"] for m in db.get_members(PAGE_ID)]
-
-        usd_equiv_rows = []
-        for member in member_rows:
-            usd_net = float(balances["USD"].get(member, 0.0))
-            jpy_net = float(balances["JPY"].get(member, 0.0))
-            jpy_in_usd = jpy_net / float(fx)
-            total_usd_net = usd_net + jpy_in_usd
-
-            usd_equiv_rows.append(
-                {
-                    "Member": member,
-                    "USD": round(usd_net, 2),
-                    "USD equiv": round(jpy_in_usd, 2),
-                    "USD net": round(total_usd_net, 2),
-                }
-            )
-
-        st.dataframe(pd.DataFrame(usd_equiv_rows), use_container_width=True, hide_index=True)
-
-        st.divider()
-        st.subheader("Transaction detail")
-
-        tab_usd, tab_jpy = st.tabs(["USD", "JPY"])
-
-        with tab_usd:
-            df_usd = db.build_transaction_matrix(PAGE_ID, "USD")
-            if df_usd.empty:
-                st.write("No USD transactions.")
-            else:
-                st.dataframe(df_usd, use_container_width=True, hide_index=True)
-
-        with tab_jpy:
-            df_jpy = db.build_transaction_matrix(PAGE_ID, "JPY")
-            if df_jpy.empty:
-                st.write("No JPY transactions.")
-            else:
-                st.dataframe(df_jpy, use_container_width=True, hide_index=True)
-
+    # ---- Deleted history ----
     st.divider()
     st.subheader("Deleted history")
+
     all_expenses = db.fetch_expenses(PAGE_ID, active_only=False)
     deleted_expenses = [e for e in all_expenses if int(e.get("is_deleted", 0)) == 1]
 
@@ -355,6 +342,28 @@ with right:
             with cB:
                 if st.button("Restore", key=f"restore_expense_{PAGE_ID}_{ex_id}"):
                     ok, msg = db.restore_expense(PAGE_ID, ex_id)
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+    # ---- Deleted members (moved here, after deleted history) ----
+    st.divider()
+    st.subheader("Deleted members")
+
+    deleted_members = [r for r in db.get_members(PAGE_ID, include_deleted=True) if int(r["is_deleted"]) == 1]
+    if not deleted_members:
+        st.write("No deleted members.")
+    else:
+        for dm in deleted_members:
+            dm_id = int(dm["id"])
+            cA, cB = st.columns([3, 1])
+            with cA:
+                st.write(f'{dm["name"]} (deleted {dm["deleted_at"]})')
+            with cB:
+                if st.button("Restore", key=f"restore_member_{PAGE_ID}_{dm_id}"):
+                    ok, msg = db.restore_member(PAGE_ID, dm_id)
                     if ok:
                         st.success(msg)
                         st.rerun()
@@ -412,7 +421,6 @@ with dz3:
         else:
             ok, msg = db.wipe_page(PAGE_ID)
             if ok:
-                # Clear session and go back to main
                 st.session_state["page_id"] = None
                 st.session_state["authed_pages"] = set()
                 st.error(msg)
