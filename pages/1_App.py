@@ -39,24 +39,12 @@ page_name = page_row["name"] if page_row else "Unknown"
 st.title(f"{page_name}")
 
 # ------------------------
-# Backup buttons (page-scoped export is only transaction detail; DB file is global)
+# Export buttons (transaction detail only)
 # ------------------------
 c1, c2 = st.columns([1, 1], gap="small")
 
 with c1:
-    try:
-        with open(db.DB_PATH, "rb") as f:
-            db_bytes = f.read()
-    except FileNotFoundError:
-        db_bytes = b""
-
-    st.download_button(
-        label="Download DB backup (split.db)",
-        data=db_bytes,
-        file_name="split_backup.db",
-        mime="application/octet-stream",
-        disabled=(len(db_bytes) == 0),
-    )
+    st.caption("")
 
 with c2:
     df_usd = db.build_transaction_matrix(PAGE_ID, "USD")
@@ -170,7 +158,7 @@ with left:
 # Right: Summary -> Transaction detail -> History -> Deleted history -> Deleted members
 # ------------------------
 with right:
-    # ---- Summary (immediately after Add expense) ----
+    # ---- Summary ----
     st.subheader("Summary")
 
     members = db.get_members(PAGE_ID)
@@ -348,7 +336,7 @@ with right:
                     else:
                         st.error(msg)
 
-    # ---- Deleted members (moved here, after deleted history) ----
+    # ---- Deleted members ----
     st.divider()
     st.subheader("Deleted members")
 

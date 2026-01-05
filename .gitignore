@@ -7,3 +7,6 @@ split.db
 
 # OS
 .DS_Store
+
+# Streamlit secrets
+.streamlit/secrets.toml

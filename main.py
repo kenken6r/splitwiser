@@ -1,4 +1,3 @@
-# main.py
 import streamlit as st
 import db
 
@@ -37,30 +36,32 @@ page_label_to_id = {}
 labels = []
 for p in pages:
     pid = str(p["id"])  # TEXT id
-    has_pw = (p["password_hash"] is not None)
+    has_pw = (p.get("password_hash") is not None)
     label = f'{p["name"]}{" (password)" if has_pw else ""}'
     labels.append(label)
     page_label_to_id[label] = pid
 
 selected_label = st.selectbox("Select page", labels)
-selected_id = str(page_label_to_id[selected_label])  # keep as TEXT
+selected_id = str(page_label_to_id[selected_label])
 
 page_row = db.get_page(selected_id)
-has_password = (page_row is not None and page_row["password_hash"] is not None)
+has_password = (page_row is not None and page_row.get("password_hash") is not None)
 
 if has_password and selected_id not in st.session_state["authed_pages"]:
     st.warning("Password required.")
-    pw = st.text_input("Enter password", type="password")
-    if st.button("Unlock"):
-        ok, msg = db.verify_page_password(selected_id, pw)
-        if ok:
-            st.session_state["authed_pages"].add(selected_id)
-            st.success("Unlocked")
-            st.rerun()
-        else:
-            st.error(msg)
+    with st.form("unlock_form"):
+        pw = st.text_input("Enter password", type="password")
+        unlock = st.form_submit_button("Unlock")
+        if unlock:
+            ok, msg = db.verify_page_password(selected_id, pw)
+            if ok:
+                st.session_state["authed_pages"].add(selected_id)
+                st.success("Unlocked")
+                st.rerun()
+            else:
+                st.error(msg)
 else:
     if st.button("Go to app"):
         st.session_state["page_id"] = selected_id
-        st.query_params["page_id"] = selected_id
+        st.query_params["page_id"] = str(selected_id)
         st.switch_page("pages/1_App.py")
