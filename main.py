@@ -8,7 +8,10 @@ import db
 st.set_page_config(page_title="Split App", layout="wide")
 db.init_db()
 
-st.title("Split App")
+st.title("SplitWiser")
+
+if st.button("Readme"):
+    st.switch_page("pages/2_Readme.py")
 
 # --------------------------------------------------
 # Session state initialization

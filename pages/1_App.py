@@ -1948,3 +1948,12 @@ with st.form(f"password_form_{PAGE_ID}", clear_on_submit=True):
             st.rerun()
         else:
             st.error(msg)
+
+# ----------------------------------------
+# Back to main page
+# ----------------------------------------
+st.divider()
+if st.button("Back to Main"):
+    st.switch_page("main.py")
+if st.button("Go to Readme"):
+    st.switch_page("pages/2_Readme.py")
