@@ -93,7 +93,7 @@ def _norm_page_id(page_id) -> str:
 
 def _generate_page_id() -> str:
     # Around 43 characters, URL safe
-    return secrets.token_urlsafe(32)
+    return secrets.token_urlsafe(8)
 
 
 # ------------------------
